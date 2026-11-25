@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Breakout - Modern</title>
+  <style>
+    :root {
+      --bg: #060910;
+      --bg-subtle: #0d1117;
+      --fg: #f0f4f8;
+      --muted: #7d8590;
+      --accent: #00d4aa;
+      --accent-bright: #00ffcc;
+      --accent-dim: rgba(0, 212, 170, 0.1);
+      --card: #111827;
+      --border: #1f2937;
+      --danger: #f87171;
+      --success: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    #gameContainer {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      touch-action: none;
+    }
+
+    canvas {
+      background: var(--bg-subtle);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+      touch-action: none;
+    }
+
+    .ui {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .score, .lives {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .score span, .lives span {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .status {
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+      min-width: 200px;
+      text-align: center;
+    }
+
+    .status.game-over {
+      color: var(--danger);
+    }
+
+    .status.win {
+      color: var(--success);
+    }
+
+    .status.ready {
+      color: var(--muted);
+    }
+
+    .controls {
+      margin-top: 0.5rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+      display: flex;
+      gap: 0.3rem;
+    }
+
+    .controls key {
+      color: var(--accent);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-weight: bold;
+      padding: 4px 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .touch-controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      background: var(--card);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .touch-btn {
+      width: 44px;
+      height: 44px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background 0.1s;
+    }
+
+    .touch-btn.active {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .touch-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .joystick {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      left: 20px;
+      bottom: 20px;
+      background: var(--bg-subtle);
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      touch-action: manipulation;
+    }
+
+    .joystick-base {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .joystick-stick {
+      width: 40px;
+      height: 40px;
+      background: var(--accent);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      touch-action: manipulation;
+    }
+
+    .joystick-arrow {
+      position: absolute;
+      width: 0;
+      height: 0;
+      border-width: 12px 16px 12px 0;
+      border-style: solid;
+      border-color: transparent var(--bg) transparent transparent;
+      transform: translateX(-100%);
+    }
+
+    @media (max-width: 420px) {
+      .touch-controls {
+        bottom: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="400" height="600" tabindex="0"></canvas>
+    <div class="ui">
+      <div class="score">Score: <span id="score">0</span></div>
+      <div class="lives">Lives: <span id="lives">3</span></div>
+      <div class="status ready" id="status">👆 Tap canvas or press any key to start</div>
+      <div class="controls">
+        <key>←</key> <key>→</key> to move
+      </div>
+    </div>
+
+    <!-- Touch controls for mobile -->
+    <div class="touch-controls" id="touchControls" style="display: none;">
+      <div class="touch-btn" id="btnLeft">←</div>
+      <div class="touch-btn" id="btnRight">→</div>
+    </div>
+
+    <!-- Joystick for mobile -->
+    <div class="joystick" id="joystick" style="display: none;">
+      <div class="joystick-base">
+        <div class="joystick-stick" id="joystickStick">
+          <div class="joystick-arrow"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Game constants
+    const COLUMNS = 9;
+    const ROWS = 5;
+    const BRICK_WIDTH = 38;
+    const BRICK_HEIGHT = 22;
+    const PADDLE_WIDTH = 90;
+    const PADDLE_HEIGHT = 14;
+    const BALL_RADIUS = 9;
+    const INITIAL_LIVES = 3;
+    const INITIAL_SPEED = 3.5;
+
+    // Game state
+    let canvas, ctx;
+    let score = 0;
+    let lives = INITIAL_LIVES;
+    let gameOver = false;
+    let won = false;
+    let running = false;
+
+    // Paddle movement flags - DECLARED HERE
+    let leftPressed = false;
+    let rightPressed = false;
+
+    // Paddle position
+    let paddleX = (400 - PADDLE_WIDTH) / 2;
+
+    // Ball position and velocity
+    let ballX = 200;
+    let ballY = 560;
+    let ballVelX = 0;
+    let ballVelY = 0;
+
+    // Touch control state
+    let touchX = 0;
+    let joystickActive = false;
+    let joystickPos = { x: 40, y: 40 };
+    let joystickStart = { x: 0, y: 0 };
+
+    // Bricks
+    let bricks = [];
+
+    // Brick colors - modern vibrant palette
+    const brickColors = [
+      '#ff6b6b', // coral/red
+      '#ff8c42', // orange
+      '#ffa502', // amber
+      '#e9c46a', // yellow-light
+      '#88d4b6', // teal
+      '#5378f0', // sky blue
+    ];
+
+    function getBrickColor(index) {
+      return brickColors[index % brickColors.length];
+    }
+
+    function darkenColor(hex, percent) {
+      const num = parseInt(hex.replace('#', ''), 16);
+      const amt = Math.round(2.55 * percent);
+      const R = Math.max(0, (num >> 16) - amt);
+      const G = Math.max(0, ((num >> 8) & 0x0000ff) - amt);
+      const B = Math.max(0, (num & 0x0000ff) - amt);
+      return `rgb(${R},${G},${B})`;
+    }
+
+    function rgbaColor(hex, alpha) {
+      const num = parseInt(hex.replace('#', ''), 16);
+      const r = (num >> 16) & 255;
+      const g = (num >> 8) & 255;
+      const b = num & 255;
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    // Initialize bricks with modern staggered layout
+    function initBricks() {
+      for (let c = 0; c < COLUMNS; c++) {
+        bricks[c] = [];
+        for (let r = 0; r < ROWS; r++) {
+          const brickX = c * (BRICK_WIDTH + 6) + 30 + (r % 2) * (BRICK_WIDTH / 2);
+          const brickY = r * (BRICK_HEIGHT + 4) + 50;
+
+          bricks[c][r] = {
+            x: brickX,
+            y: brickY,
+            status: 1,
+            colorIndex: r
+          };
+        }
+      }
+    }
+
+    // Initialize game
+    function init() {
+      canvas = document.getElementById('gameCanvas');
+      ctx = canvas.getContext('2d');
+
+      initBricks();
+
+      score = 0;
+      lives = INITIAL_LIVES;
+      gameOver = false;
+      won = false;
+      running = false;
+      document.getElementById('score').innerText = score;
+      document.getElementById('lives').innerText = lives;
+      document.getElementById('status').innerText = '👆 Tap canvas or press any key to start';
+      document.getElementById('status').className = 'status ready';
+
+      paddleX = (400 - PADDLE_WIDTH) / 2;
+      ballX = 200;
+      ballY = 560;
+      ballVelX = 0;
+      ballVelY = 0;
+
+      joystickActive = false;
+      joystickPos = { x: 40, y: 40 };
+      updateJoystickVisual();
+
+      setupEventListeners();
+      runGameLoop();
+    }
+
+    function setupEventListeners() {
+      // Keyboard controls
+      document.addEventListener('keydown', keyDownHandler);
+      document.addEventListener('keyup', keyUpHandler);
+
+      // Canvas click/tap to start
+      canvas.addEventListener('mousedown', startGameFromInput);
+      canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        startGameFromInput();
+      }, { passive: false });
+
+      // Touch controls - left button
+      document.getElementById('btnLeft').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        leftPressed = true;
+      });
+      document.getElementById('btnLeft').addEventListener('touchend', () => {
+        leftPressed = false;
+      });
+      document.getElementById('btnLeft').addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        leftPressed = true;
+      });
+      document.getElementById('btnLeft').addEventListener('mouseup', () => {
+        leftPressed = false;
+      });
+
+      // Touch controls - right button
+      document.getElementById('btnRight').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        rightPressed = true;
+      });
+      document.getElementById('btnRight').addEventListener('touchend', () => {
+        rightPressed = false;
+      });
+      document.getElementById('btnRight').addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        rightPressed = true;
+      });
+      document.getElementById('btnRight').addEventListener('mouseup', () => {
+        rightPressed = false;
+      });
+
+      // Joystick touch events
+      const joystick = document.getElementById('joystick');
+      const joystickStick = document.getElementById('joystickStick');
+
+      joystick.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        joystickActive = true;
+        joystickStart = getTouchPosition(joystick, e);
+        updateJoystickVisual();
+      });
+
+      joystick.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (!joystickActive) return;
+        const current = getTouchPosition(joystick, e);
+        const dx = current.x - joystickStart.x;
+        const dy = current.y - joystickStart.y;
+
+        const maxDist = 20;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxDist) {
+          const angle = Math.atan2(dy, dx);
+          joystickPos = {
+            x: 40 + Math.cos(angle) * maxDist,
+            y: 40 + Math.sin(angle) * maxDist
+          };
+        } else {
+          joystickPos = {
+            x: 40 + dx,
+            y: 40 + dy
+          };
+        }
+
+        joystickPos.x = Math.max(0, Math.min(80, joystickPos.x));
+        joystickPos.y = Math.max(0, Math.min(80, joystickPos.y));
+
+        updateJoystickVisual();
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+          if (dx < 0) {
+            leftPressed = true;
+            rightPressed = false;
+          } else {
+            rightPressed = true;
+            leftPressed = false;
+          }
+        } else {
+          leftPressed = false;
+          rightPressed = false;
+        }
+      });
+
+      joystick.addEventListener('touchend', () => {
+        joystickActive = false;
+        joystickPos = { x: 40, y: 40 };
+        updateJoystickVisual();
+        leftPressed = false;
+        rightPressed = false;
+      });
+
+      document.addEventListener('touchend', (e) => {
+        const touch = e.changedTouches[0];
+        const joystick = document.getElementById('joystick');
+        if (joystick.style.display !== 'none') {
+          const rect = joystick.getBoundingClientRect();
+          if (
+            touch.clientX < rect.left ||
+            touch.clientX > rect.right ||
+            touch.clientY < rect.top ||
+            touch.clientY > rect.bottom
+          ) {
+            leftPressed = false;
+            rightPressed = false;
+          }
+        }
+      });
+
+      canvas.addEventListener('touchstart', (e) => e.preventDefault());
+      canvas.addEventListener('touchmove', (e) => e.preventDefault());
+    }
+
+    function startGameFromInput() {
+      if (!running && !gameOver && !won) {
+        running = true;
+        ballVelX = (Math.random() - 0.5) * 4;
+        ballVelY = -INITIAL_SPEED;
+      } else if (gameOver || won) {
+        init();
+      }
+    }
+
+    function getTouchPosition(element, e) {
+      const rect = element.getBoundingClientRect();
+      const touch = e.touches ? e.touches[0] : e;
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      };
+    }
+
+    function updateJoystickVisual() {
+      const joystickStick = document.getElementById('joystickStick');
+      joystickStick.style.transform = `translate(${joystickPos.x - 20}px, ${joystickPos.y - 20}px)`;
+    }
+
+    function keyDownHandler(e) {
+      if (e.key === 'ArrowLeft') {
+        leftPressed = true;
+      } else if (e.key === 'ArrowRight') {
+        rightPressed = true;
+      }
+
+      if (!running) {
+        running = true;
+        if (ballVelX === 0 && ballVelY === 0) {
+          ballVelX = (Math.random() - 0.5) * 4;
+          ballVelY = -INITIAL_SPEED;
+        }
+      } else if (gameOver || won) {
+        init();
+      }
+    }
+
+    function keyUpHandler(e) {
+      if (e.key === 'ArrowLeft') {
+        leftPressed = false;
+      } else if (e.key === 'ArrowRight') {
+        rightPressed = false;
+      }
+    }
+
+    function drawBricks() {
+      for (let c = 0; c < COLUMNS; c++) {
+        for (let r = 0; r < ROWS; r++) {
+          if (bricks[c][r].status === 1) {
+            const brick = bricks[c][r];
+            const color = getBrickColor(brick.colorIndex);
+
+            const gradient = ctx.createLinearGradient(brick.x, brick.y, brick.x + BRICK_WIDTH, brick.y + BRICK_HEIGHT);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(1, darkenColor(color, 0.3));
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(brick.x, brick.y, BRICK_WIDTH, BRICK_HEIGHT);
+
+            ctx.strokeStyle = rgbaColor(color, 0.3);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(brick.x, brick.y, BRICK_WIDTH, BRICK_HEIGHT);
+
+            ctx.fillStyle = rgbaColor('white', 0.1);
+            ctx.fillRect(brick.x + 2, brick.y + 2, BRICK_WIDTH - 4, 4);
+          }
+        }
+      }
+    }
+
+    function drawPaddle() {
+      const gradient = ctx.createLinearGradient(paddleX, 580 - PADDLE_HEIGHT, paddleX + PADDLE_WIDTH, 580 - PADDLE_HEIGHT);
+      gradient.addColorStop(0, '#ffffff');
+      gradient.addColorStop(1, '#e2e8f0');
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(paddleX, 580 - PADDLE_HEIGHT, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(paddleX, 580 - PADDLE_HEIGHT, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillRect(paddleX, 580 - PADDLE_HEIGHT, PADDLE_WIDTH, 2);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fillRect(paddleX, 580 - PADDLE_HEIGHT + PADDLE_HEIGHT - 2, PADDLE_WIDTH, 2);
+    }
+
+    function drawBall() {
+      const gradient = ctx.createRadialGradient(ballX, ballY, 0, ballX, ballY, BALL_RADIUS);
+      gradient.addColorStop(0, '#ffffff');
+      gradient.addColorStop(0.5, '#e2e8f0');
+      gradient.addColorStop(1, '#cbd5e1');
+
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.beginPath();
+      ctx.arc(ballX - BALL_RADIUS / 3, ballY - BALL_RADIUS / 3, BALL_RADIUS / 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(0,212,170,0.3)';
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, BALL_RADIUS * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 400, 600);
+
+      const bgGradient = ctx.createLinearGradient(0, 0, 0, 600);
+      bgGradient.addColorStop(0, '#0a0d17');
+      bgGradient.addColorStop(1, '#1a202c');
+      ctx.fillStyle = bgGradient;
+      ctx.fillRect(0, 0, 400, 600);
+
+      drawBricks();
+      drawPaddle();
+      drawBall();
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '13px "Segoe UI", system-ui, sans-serif';
+      ctx.fillText('Score: ' + score, 10, 20);
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText('Lives: ' + lives, 370 - 50, 20);
+
+      const statusEl = document.getElementById('status');
+      if (gameOver) {
+        statusEl.innerText = 'Game Over';
+        statusEl.className = 'status game-over';
+      } else if (won) {
+        statusEl.innerText = 'You Win!';
+        statusEl.className = 'status win';
+      } else if (!running) {
+        statusEl.innerText = '👆 Tap canvas or press any key to start';
+        statusEl.className = 'status ready';
+      } else {
+        statusEl.innerText = '';
+        statusEl.className = 'status';
+      }
+    }
+
+    function movePaddle() {
+      if (leftPressed && paddleX > 0) {
+        paddleX -= 8;
+      } else if (rightPressed && paddleX < 400 - PADDLE_WIDTH) {
+        paddleX += 8;
+      }
+    }
+
+    function moveBall() {
+      ballX += ballVelX;
+      ballY += ballVelY;
+
+      if (ballX - BALL_RADIUS < 0 || ballX + BALL_RADIUS > 400) {
+        ballVelX = -ballVelX;
+      }
+
+      if (ballY - BALL_RADIUS < 0) {
+        ballVelY = -ballVelY;
+      }
+
+      if (
+        ballY + BALL_RADIUS > 580 - PADDLE_HEIGHT &&
+        ballY - BALL_RADIUS < 580 &&
+        ballX > paddleX && ballX < paddleX + PADDLE_WIDTH
+      ) {
+        ballVelY = -Math.abs(ballVelY) * 1.05;
+        const hitPos = (ballX - paddleX) / PADDLE_WIDTH - 0.5;
+        ballVelX = hitPos * 6;
+
+        score += 10;
+        document.getElementById('score').innerText = score;
+      }
+
+      for (let c = 0; c < COLUMNS; c++) {
+        for (let r = 0; r < ROWS; r++) {
+          if (bricks[c][r].status === 1) {
+            const brick = bricks[c][r];
+            if (
+              ballX > brick.x - 2 &&
+              ballX < brick.x + BRICK_WIDTH + 2 &&
+              ballY > brick.y - 2 &&
+              ballY < brick.y + BRICK_HEIGHT + 2
+            ) {
+              ballVelY = -ballVelY;
+              bricks[c][r].status = 0;
+              score += 50;
+              document.getElementById('score').innerText = score;
+
+              checkWin();
+            }
+          }
+        }
+      }
+
+      if (ballY + BALL_RADIUS > 600) {
+        lives--;
+        document.getElementById('lives').innerText = lives;
+
+        if (lives <= 0) {
+          gameOver = true;
+          document.getElementById('status').innerText = 'Game Over! Tap canvas to restart';
+        } else {
+          resetBall();
+        }
+      }
+    }
+
+    function resetBall() {
+      ballX = 200;
+      ballY = 560;
+      ballVelX = 0;
+      ballVelY = 0;
+      paddleX = (400 - PADDLE_WIDTH) / 2;
+      running = false;
+      document.getElementById('status').innerText = 'Tap to continue';
+      document.getElementById('status').className = 'status ready';
+    }
+
+    function checkWin() {
+      let remaining = 0;
+      for (let c = 0; c < COLUMNS; c++) {
+        for (let r = 0; r < ROWS; r++) {
+          if (bricks[c][r].status === 1) remaining++;
+        }
+      }
+
+      if (remaining === 0) {
+        won = true;
+        ballVelX = 0;
+        ballVelY = 0;
+        running = false;
+        document.getElementById('status').innerText = 'You Win! Tap to restart';
+        document.getElementById('status').className = 'status win';
+      }
+    }
+
+    function runGameLoop() {
+      if (gameOver || won) {
+        draw(); // Final draw to show win/game over state
+        return;
+      }
+
+      if (running) {
+        movePaddle();
+        moveBall();
+      }
+      draw();
+
+      requestAnimationFrame(runGameLoop);
+    }
+
+    init();
+    window.init = init;
+  </script>
+</body>
+</html>
