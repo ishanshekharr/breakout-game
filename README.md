@@ -15,7 +15,8 @@ A classic browser-based Breakout game built using HTML, CSS and JavaScript.
 - JavaScript
 
 ## Play Online
-[Play Breakout Game]((https://ishanshekharr.github.io/breakout-game/)
+
+[Play Breakout Game](https://ishanshekharr.github.io/breakout-game/)
 
 ## Run Locally
 1. Clone this repository.
